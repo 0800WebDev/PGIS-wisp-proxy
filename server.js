@@ -143,15 +143,28 @@ const path = require("path");
 
 const server = http.createServer((req, res) => {
   if (req.url === "/" || req.url === "/index.html") {
-    const file = fs.readFileSync(
-      path.join(__dirname, "index.html")
+    fs.readFile(
+      path.join(__dirname, "index.html"),
+      (err, data) => {
+        if (err) {
+          console.error("Failed to load index.html:", err);
+
+          res.writeHead(500, {
+            "Content-Type": "text/plain"
+          });
+
+          res.end("Failed to load index.html");
+          return;
+        }
+
+        res.writeHead(200, {
+          "Content-Type": "text/html; charset=utf-8"
+        });
+
+        res.end(data);
+      }
     );
 
-    res.writeHead(200, {
-      "Content-Type": "text/html; charset=utf-8"
-    });
-
-    res.end(file);
     return;
   }
 
@@ -161,7 +174,6 @@ const server = http.createServer((req, res) => {
 
   res.end("Not found");
 });
-
 const wss = new WebSocket.Server({
   noServer: true
 });
