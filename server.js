@@ -138,16 +138,28 @@ async function getBestServer() {
   return bestServer;
 }
 
+const fs = require("fs");
+const path = require("path");
+
 const server = http.createServer((req, res) => {
-  res.writeHead(200, {
+  if (req.url === "/" || req.url === "/index.html") {
+    const file = fs.readFileSync(
+      path.join(__dirname, "index.html")
+    );
+
+    res.writeHead(200, {
+      "Content-Type": "text/html; charset=utf-8"
+    });
+
+    res.end(file);
+    return;
+  }
+
+  res.writeHead(404, {
     "Content-Type": "text/plain"
   });
 
-  res.end(
-    bestServer
-      ? `Wisp rerouter online\nCurrent server: ${bestServer.url}\nLatency: ${bestServer.latency}ms`
-      : "Wisp rerouter online\nNo Wisp server currently available"
-  );
+  res.end("Not found");
 });
 
 const wss = new WebSocket.Server({
