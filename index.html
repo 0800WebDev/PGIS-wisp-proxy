@@ -1,0 +1,397 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>PGIS wisp proxy rerouter</title>
+  <style>
+@import url('https://fonts.googleapis.com/css2?family=Sora:wght@100..800&display=swap');
+
+html, body{
+  margin:0;
+  width:100%;
+  height:100%;
+  background:transparent;
+  color:white;
+  font-family:Inter,sans-serif;
+  overflow:auto;
+}
+
+*{
+  box-sizing:border-box;
+}
+
+.container{
+  position:relative;
+  z-index:1;
+  min-height:100%;
+  display:flex;
+  justify-content:center;
+  align-items:center;
+  padding:20px;
+}
+
+#main{
+  width:min(800px,92vw);
+  max-height:90vh;
+  overflow:auto;
+  background:rgba(255,255,255,0.06);
+  border:1px solid #444;
+  border-radius:8px;
+  backdrop-filter:blur(8px);
+  padding:clamp(16px,4vw,30px);
+  text-align:center;
+}
+
+h1{
+  text-align:center;
+  font-family:'Sora',sans-serif;
+
+  background:
+    linear-gradient(
+      115deg,
+      #4a4a4a 0%,
+      #ffffff 10%,
+      #7a7a7a 18%,
+      #f5f5f5 25%,
+      #8c8c8c 32%,
+      #ffffff 40%,
+      #5e5e5e 50%,
+      #ffffff 60%,
+      #9a9a9a 68%,
+      #f0f0f0 76%,
+      #6e6e6e 85%,
+      #ffffff 100%
+    );
+
+  -webkit-background-clip:text;
+  -webkit-text-fill-color:transparent;
+  background-size:300% auto;
+  animation:chrome 20s ease-in-out infinite alternate;
+}
+
+@keyframes chrome{
+  from{background-position:0% 50%;}
+  to{background-position:100% 50%;}
+}
+
+.subtitle{
+  color:#aaa;
+  margin-top:-10px;
+  margin-bottom:25px;
+}
+
+.group-title{
+  text-align:left;
+  font-family:'Sora',sans-serif;
+  font-size:14px;
+  color:#aaa;
+  margin:20px 0 8px;
+}
+
+.server{
+  display:flex;
+  align-items:center;
+  gap:12px;
+  padding:14px;
+  margin:8px 0;
+  border:1px solid #3d3d3d;
+  border-radius:7px;
+  background:rgba(255,255,255,0.035);
+  text-align:left;
+}
+
+.dot{
+  width:10px;
+  height:10px;
+  min-width:10px;
+  border-radius:50%;
+  background:#777;
+}
+
+.dot.online{
+  background:#50d890;
+  box-shadow:0 0 8px rgba(80,216,144,.5);
+}
+
+.dot.offline{
+  background:#e05252;
+  box-shadow:0 0 8px rgba(224,82,82,.35);
+}
+
+.info{
+  min-width:0;
+  flex:1;
+}
+
+.name{
+  font-weight:600;
+  overflow:hidden;
+  text-overflow:ellipsis;
+  white-space:nowrap;
+}
+
+.url{
+  color:#777;
+  font-size:12px;
+  margin-top:3px;
+  overflow:hidden;
+  text-overflow:ellipsis;
+  white-space:nowrap;
+}
+
+.status{
+  text-align:right;
+  min-width:80px;
+  font-size:13px;
+}
+
+.online-text{
+  color:#50d890;
+}
+
+.offline-text{
+  color:#e05252;
+}
+
+.latency{
+  color:#aaa;
+  margin-top:3px;
+  font-size:12px;
+}
+
+.selected{
+  border-color:#50d890;
+  background:rgba(80,216,144,.06);
+}
+
+.badge{
+  display:inline-block;
+  margin-top:4px;
+  padding:2px 7px;
+  border-radius:4px;
+  background:rgba(80,216,144,.12);
+  color:#50d890;
+  font-size:10px;
+}
+
+#updated{
+  margin-top:20px;
+  color:#777;
+  font-size:12px;
+}
+
+@media(max-width:550px){
+  .server{
+    padding:12px;
+  }
+
+  .status{
+    min-width:65px;
+  }
+
+  .url{
+    max-width:180px;
+  }
+}
+  </style>
+</head>
+
+<body>
+  <div class="container">
+    <div id="main">
+      <h1>PGIS wisp proxy</h1>
+      <div class="subtitle">Server status</div>
+
+      <div class="group-title">PGIS wisp (primary)</div>
+      <div id="primary"></div>
+
+      <div class="group-title">Fallback servers</div>
+      <div id="fallback"></div>
+
+      <div id="updated">Checking servers...</div>
+    </div>
+  </div>
+
+<script>
+const servers = {
+  primary: [
+    ["PGIS Wisp 1", "wss://pgis-wisp.onrender.com/"],
+    ["PGIS Wisp 2", "wss://pgis-wisp-2.onrender.com/"],
+    ["PGIS Wisp 3", "wss://pgis-wisp-3.onrender.com/"],
+    ["PGIS Wisp 4", "wss://pgis-wisp-4.onrender.com/"]
+  ],
+  fallback: [
+    ["Classroom", "wss://wisp.classroom.lat/"],
+    ["Replit", "wss://homework--spmspy0800.replit.app/wisp/"],
+    ["Fly.io", "wss://bare-server.fly.dev/wisp/"],
+    ["MercuryWorkshop", "wss://wisp.mercurywork.shop/"]
+  ]
+};
+
+function createServerElement(name, url) {
+  const element = document.createElement("div");
+
+  element.className = "server";
+  element.dataset.url = url;
+
+  element.innerHTML = `
+    <div class="dot"></div>
+
+    <div class="info">
+      <div class="name">${name}</div>
+      <div class="url">${url}</div>
+      <div class="badge" style="display:none">ACTIVE</div>
+    </div>
+
+    <div class="status">
+      <div class="status-text">Checking</div>
+      <div class="latency"></div>
+    </div>
+  `;
+
+  return element;
+}
+
+function renderServers() {
+  const primary = document.getElementById("primary");
+  const fallback = document.getElementById("fallback");
+
+  primary.innerHTML = "";
+  fallback.innerHTML = "";
+
+  for (const [name, url] of servers.primary) {
+    primary.appendChild(createServerElement(name, url));
+  }
+
+  for (const [name, url] of servers.fallback) {
+    fallback.appendChild(createServerElement(name, url));
+  }
+}
+
+async function checkServer(element) {
+  const url = element.dataset.url;
+  const dot = element.querySelector(".dot");
+  const status = element.querySelector(".status-text");
+  const latency = element.querySelector(".latency");
+
+  const start = performance.now();
+
+  return new Promise(resolve => {
+    let finished = false;
+
+    function finish(result) {
+      if (finished) return;
+
+      finished = true;
+
+      if (result) {
+        const ms = Math.round(performance.now() - start);
+
+        dot.className = "dot online";
+        status.className = "status-text online-text";
+        status.textContent = "Online";
+        latency.textContent = `${ms} ms`;
+
+        resolve({
+          url,
+          latency: ms
+        });
+      } else {
+        dot.className = "dot offline";
+        status.className = "status-text offline-text";
+        status.textContent = "Offline";
+        latency.textContent = "";
+
+        resolve(null);
+      }
+    }
+
+    let ws;
+
+    try {
+      ws = new WebSocket(url);
+    } catch {
+      finish(null);
+      return;
+    }
+
+    const timeout = setTimeout(() => {
+      try {
+        ws.close();
+      } catch {}
+
+      finish(null);
+    }, 5000);
+
+    ws.onopen = () => {
+      clearTimeout(timeout);
+
+      try {
+        ws.close();
+      } catch {}
+
+      finish(true);
+    };
+
+    ws.onerror = () => {
+      clearTimeout(timeout);
+      finish(null);
+    };
+  });
+}
+
+async function checkAll() {
+  document.getElementById("updated").textContent =
+    "Checking servers...";
+
+  const elements = [
+    ...document.querySelectorAll(".server")
+  ];
+
+  const results = await Promise.all(
+    elements.map(checkServer)
+  );
+
+  const healthy = results
+    .filter(Boolean)
+    .sort((a, b) => a.latency - b.latency);
+
+  document.querySelectorAll(".badge").forEach(badge => {
+    badge.style.display = "none";
+  });
+
+  document.querySelectorAll(".server").forEach(server => {
+    server.classList.remove("selected");
+  });
+
+  if (healthy.length) {
+    const selected = healthy[0];
+
+    const element = document.querySelector(
+      `.server[data-url="${CSS.escape(selected.url)}"]`
+    );
+
+    if (element) {
+      element.classList.add("selected");
+
+      const badge = element.querySelector(".badge");
+      badge.style.display = "inline-block";
+    }
+
+    document.getElementById("updated").textContent =
+      `Best server: ${selected.url} • ${selected.latency} ms`;
+  } else {
+    document.getElementById("updated").textContent =
+      "All servers are offline";
+  }
+}
+
+renderServers();
+checkAll();
+
+setInterval(checkAll, 30000);
+</script>
+
+</body>
+</html>
