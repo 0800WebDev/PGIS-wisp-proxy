@@ -1,6 +1,31 @@
 const http = require("http");
 const WebSocket = require("ws");
+const fs = require("fs");
+const path = require("path");
 
+const server = http.createServer((req, res) => {
+  if (req.url === "/" || req.url === "/index.html") {
+    fs.readFile(path.join(__dirname, "index.html"), (err, data) => {
+      if (err) {
+        console.error(err);
+        res.writeHead(500);
+        res.end("Failed to load index.html");
+        return;
+      }
+
+      res.writeHead(200, {
+        "Content-Type": "text/html; charset=utf-8"
+      });
+
+      res.end(data);
+    });
+
+    return;
+  }
+
+  res.writeHead(404);
+  res.end("Not found");
+});
 const PRIMARY = [
   "wss://pgis-wisp.onrender.com/",
   "wss://pgis-wisp-2.onrender.com/",
@@ -138,18 +163,42 @@ async function getBestServer() {
   return bestServer;
 }
 
+const fs = require("fs");
+const path = require("path");
+
 const server = http.createServer((req, res) => {
-  res.writeHead(200, {
+  if (req.url === "/" || req.url === "/index.html") {
+    fs.readFile(
+      path.join(__dirname, "index.html"),
+      (err, data) => {
+        if (err) {
+          console.error("Failed to load index.html:", err);
+
+          res.writeHead(500, {
+            "Content-Type": "text/plain"
+          });
+
+          res.end("Failed to load index.html");
+          return;
+        }
+
+        res.writeHead(200, {
+          "Content-Type": "text/html; charset=utf-8"
+        });
+
+        res.end(data);
+      }
+    );
+
+    return;
+  }
+
+  res.writeHead(404, {
     "Content-Type": "text/plain"
   });
 
-  res.end(
-    bestServer
-      ? `Wisp rerouter online\nCurrent server: ${bestServer.url}\nLatency: ${bestServer.latency}ms`
-      : "Wisp rerouter online\nNo Wisp server currently available"
-  );
+  res.end("Not found");
 });
-
 const wss = new WebSocket.Server({
   noServer: true
 });
@@ -267,13 +316,17 @@ function proxyConnection(client, target) {
   });
 }
 
-server.listen(process.env.PORT || 3000, () => {
-  console.log(
-    `Wisp rerouter listening on port ${process.env.PORT || 3000}`
-  );
+const PORT = process.env.PORT || 3000;
 
-  selectServer();
+server.listen(PORT, "0.0.0.0", () => {
+  console.log(`Wisp rerouter listening on port ${PORT}`);
 });
+
+setTimeout(() => {
+  selectServer();
+}, 1000);
+
+  
 
 setInterval(() => {
   selectServer();
